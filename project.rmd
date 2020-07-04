@@ -1,0 +1,86 @@
+---
+title: "Practical Machine Learning Project"
+---
+
+# Summary
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. The goal of this project is to use data from accelerometers on the belt, forearm, arm, and dumbbell of 6 participants as they perform barbell lifts correctly and incorrectly 5 different ways.
+
+Six young healthy participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions:
+* Class A - exactly according to the specification
+* Class B - throwing the elbows to the front
+* Class C - lifting the dumbbell only halfway
+* Class D - lowering the dumbbell only halfway
+* Class E - throwing the hips to the front
+
+Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes. Participants were supervised by an experienced weight lifter to make sure the execution complied to the manner they were supposed to simulate. The exercises were performed by six male participants aged between 20-28 years, with little weight lifting experience. Researchers made sure that all participants could easily simulate the mistakes in a safe and controlled manner by using a relatively light dumbbell (1.25kg).
+
+In this case, we will fit a model using the predictors to predict the manner of exercise of each participants. 
+
+# Load the package
+```{r}
+# Getting the necessary package
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(e1071)
+library(randomForest)
+set.seed(1)
+```
+
+# Getting the data
+We first start by loading the data:
+```{r}
+train  <- read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!",""))
+test<- read.csv("pml-testing.csv",na.strings=c("NA","#DIV/0!",""))
+```
+
+# Cleaning the data
+Then we clean the data by removing unnecessary data and data with all NAs. 
+```{r}
+# Removing the first 7 columns because they are not needed for the prediction
+train_clean <- train[,8:length(colnames(train))]
+test_clean <- test[,8:length(colnames(test))]
+
+# Removing colums with NAs
+train_clean <- train_clean[, colSums(is.na(train_clean)) == 0] 
+test_clean <- test_clean[, colSums(is.na(test_clean)) == 0] 
+
+# Checking for near zero variance predictors 
+nzv <- nearZeroVar(train_clean,saveMetrics=TRUE)
+train_clean <- train_clean[,nzv$nzv==FALSE]
+```
+
+# Splitting the data
+We then continue by splitting the data of the training set to two parts, train set and validation set. In this case, we are going to use 75%, 25% of training and validation set. 
+```{r}
+inTrain <- createDataPartition(train_clean$classe, p = 3/4, list = F)
+training <- train_clean[ inTrain,]
+validation <-train_clean[-inTrain,]
+```
+
+# Model Training
+Now we are going to train the model. In this case, we use the random Forest method because it is very robust to outliers and non-linear data. In addition, it also helps to reduce the variance of the model while keeping the bias to be as low as possible. However, we will start by further process the data using the cross validation technique. In this case, we will split the data into 10 folds cross validation, which means we will sample the data randomly into 10 equal-sized sub samples. In this case, we will use a sample for validation, and the other for the training set. In this case, we will repeat the process 5 times, and average the results. 
+```{r, cache= TRUE}
+mod<- train(classe~., data = training, method = "rf", trControl = trainControl(method = "cv", 10))
+mod
+```
+
+# Estimating performance
+The model is fitted to the validation data to check for its accuracy. This way, we want to know how well this model can predict the data. 
+```{r}
+pred <- predict(mod, validation)
+acc<-confusionMatrix(validation$classe, pred)$overall[1]
+```
+The accuracy of the model while predicting the validation set is `r acc`
+
+# Model Execution
+The model is tested to the test data to predict the results. 
+```{r}
+result<- predict(mod, test_clean[ , -length(names(test_clean))])
+results
+```
+
+# Reference
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human ’13). Stuttgart, Germany: ACM SIGCHI, 2013.
